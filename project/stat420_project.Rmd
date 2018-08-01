@@ -185,11 +185,40 @@ diagnostics(model_additive)
 
 
 ```
+
+We can see that our new log model is still not bale to pass the test.
+
 ```{r}
-# not sure what is wrong here
+model_poly = lm(Enrollment.rate ~ poly(SAT.verb.75, degree = 2)+poly(SAT.math.75,2)+poly(ACT.engl.75,2)+poly(ACT.math.75,2)+Cost.ratio+Gender.ratio+Regions+Location.type, data = Enrollment)
 
-boxcox(model_log,lambda = seq(-0.3, 0.4, length = 10),  plotit = TRUE)
+summary(model_poly)
 
+
+
+```
+We can see that none of polynomial predictor is signifact in model.
+
+```{r}
+vif(model_poly)
+diagnostics(model_poly)
+
+```
+
+Vif and diagnostic test tells us that poly transformation are not improving the model and rather making it more worst.
+
+```{r}
+
+enroll_boxbox = boxcox(model_log,lambda = seq(-0.3, 0.4, length = 10),  plotit = TRUE)
+lambda = enroll_boxbox$'x'[which.max(enroll_boxbox$y)]
+
+# modified additive LM with all remaining variables
+model_boxcox_log = lm((((Enrollment.rate ^ lambda) - 1 ) / lambda) ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = Enrollment)
+summary(model_boxcox_log)
+
+```
+```{r}
+vif(model_boxcox_log)
+diagnostics(model_boxcox_log)
 ```
 
 ```{r}
