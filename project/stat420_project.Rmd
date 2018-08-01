@@ -1,0 +1,83 @@
+---
+title: "Data Analysis Project Proposal: Enrollment Rate across US Universities"
+output: html_document
+---
+
+## Team
+
+- Joseph Juhn (jjuhn2)
+- Olga Scrivner (olgas2)
+- Hardik Naik (hardikn2)
+- Marie Biscarrat (biscarr1)
+
+## Title
+
+A tentitive title for this Data Analysis Project is: 
+
+*Enrollment Rate across US Universities*
+
+## Research Statement
+
+We are looking to study how enrollment rate (Enrollment / Application) across US University is affected by tuition, location, test scores .... This is one of the essential questions asked by not only prospective students (domestic and international) and their parents but also by other stakeholders, for example, school deans, counselors, Standardized Test tutors. We are hoping that with this model, prospective students will have a better idea of their chances to be enrolled in a school based on their high school and test results and other factors that are considered when choosing a school. 
+
+## Data
+
+Our data comes from IPEDS (https://nces.ed.gov/ipeds/use-the-data), a publicly available data by NCES from every Title IV-eligible institution as required by the Higher Education Act of 1965. The data provides characteristics of institutions (Programs, majors, highest level of awards, tuition…), students enrollments and admission (SAT, ACT, ethnicity...), completions (race, ethnicity, gender, level of awards, graduation rates...), and other outcomes. The following datasets are extracted for the year 2016: Institutional Characteristic Data, Admission and Test Scores Data, Fall Enrollments. All datasets are linked by Institution ID. For this study the most relevant variables/predictors are (among others): Institution ID, names, states and location type (taken from Instidutional Characteristic data set: hd2016.cvs), 75th percentile SAT and ACT scores (taken from Admission and Test Scores data set: adm2016.cvs), and tuition and other fees (taken from Instidutional Characteristic data set: IC2016_AY.cvs). We will be looking at the enrollment rate given by:
+\[\text{Enrollment Rate} = \frac{\text{Enrollment}}{\text{Applications}}\]
+(Enrollment and application taken from Admission and Test Scores data set: adm2016.cvs)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+adm_full = read.table("adm2016.csv", header = T, sep = ",")
+charact_full = read.table("hd2016.csv", header = T, sep = ",")
+tuition_full = read.table("ic2016_ay.csv", header = T, sep = ",")
+```
+
+```{r}
+ID_adm = adm_full$UNITID
+ID_charact = charact_full$UNITID
+ID_tuition = tuition_full$UNITID
+Common_ID = Reduce(intersect, list(ID_adm,ID_charact,ID_tuition))
+
+adm = adm_full[which(ID_adm %in% Common_ID),]
+charact = charact_full[which(ID_charact %in% Common_ID),]
+tuition = tuition_full[which(ID_tuition %in% Common_ID),]
+```
+
+```{r}
+as.numeric.factor  =  function(x) {
+    as.numeric(levels(x))[x]}
+```
+
+```{r message=FALSE, warning=FALSE}
+# Sum of all expected cost: Tuition, Fees, Books, on campus Room and Board, other Expenses
+in_cost = as.numeric.factor(tuition$CHG2AY3) + as.numeric.factor(tuition$CHG4AY3) + as.numeric.factor(tuition$CHG5AY3) + as.numeric.factor(tuition$CHG6AY3)
+
+out_cost = as.numeric.factor(tuition$CHG3AY3) + as.numeric.factor(tuition$CHG4AY3) + as.numeric.factor(tuition$CHG5AY3) + as.numeric.factor(tuition$CHG6AY3)
+```
+
+```{r}
+rate = adm$ENRLT / adm$APPLCN
+Enrollment_data = data.frame(
+    School.ID = charact$UNITID,
+    School.Name = charact$INSTNM,
+    State = charact$STABBR,
+    Location.type = charact$LOCALE,
+    SAT.Verb.75 = adm$SATVR75,
+    SAT.Math.75 = adm$SATMT75,
+    ACT.Eng.75 = adm$ACTEN75,
+    ACT.Math.75 = adm$ACTMT75,
+    In.State.Cost = in_cost,
+    Out.State.Cost = out_cost,
+    Enrollment.Rate = rate
+)
+head(Enrollment_data$Enrollment.Rate)
+```
+
+## Reference
+
+National Center for Education Statistics. (1986). IPEDS : Integrated Postsecondary Education Data System : less than two-year institutions. Washington, D.C. :National Center for Education Statistics.
+Integrated Postsecondary Education System. [Data Files]. Retrieved from https://nces.ed.gov/ipeds/use-the-data. [Accessed 07/16/18].
