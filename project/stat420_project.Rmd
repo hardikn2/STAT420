@@ -1,7 +1,15 @@
 ---
-title: "Data Analysis Project Proposal: Enrollment Rate across US Universities"
-output: html_document
+title: "Simulation Study"
+author: "Joseph Juhn (jjuhn2),Olga Scrivner (olgas2), Hardik Naik (hardikn2),Marie Biscarrat (biscarr1)"
+output:
+  html_document: 
+    fig_width: 10
+    toc: yes
+  pdf_document: default
+urlcolor: cyan
 ---
+
+***
 
 ## Team
 
@@ -128,13 +136,23 @@ Enrollment_data = Enrollment_data_detailed[ , !(names(Enrollment_data_detailed) 
 ```{r}
 Enrollment = Enrollment_data[-(c(1,2))]
 
+enrollment_idx = sample(nrow(Enrollment), 100)
+enrollment_trn = Enrollment[-enrollment_idx, ]
+enrollment_tst = Enrollment[enrollment_idx, ]
+
+calc_test_rmse <- function(model){
+  predictions <- predict(model, enrollment_tst)
+  sqrt(mean((enrollment_tst$Enrollment.rate - predictions) ^ 2))
+  #rmse(enrollment_tst$Enrollment.rate, predictions)
+}
 ```
 
 Lets start with simple additive model.
 ```{r}
 # When you model make sure to remove School.ID and School.Name
-model_additive = lm(Enrollment.rate ~ ., data = Enrollment)
+model_additive = lm(Enrollment.rate ~ ., data = enrollment_trn)
 summary(model_additive)
+calc_test_rmse(model_additive)
 ```
 
 We can see that t-test is failed to reject but Adjusted R-squared is very low.
@@ -167,6 +185,8 @@ calc_loocv_rmse = function(model) {
 
 diagnostics(model_additive)
 calc_loocv_rmse(model_additive)
+calc_test_rmse(model_additive)
+
 ```
 
 Fitted vs Residual plot clearly shows a pattern and normality and equal variance assumptions are suspect.
@@ -180,12 +200,14 @@ which(vif(model_additive) > 5)
 
 
 ```{r}
-pairs(Enrollment)
-cor(Enrollment[-c(1,8,9)])
+pairs(enrollment_trn)
+cor(enrollment_trn[-c(1,8,9)])
 ```
 ```{r}
-model_log = lm(Enrollment.rate ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = Enrollment)
+model_log = lm(Enrollment.rate ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = enrollment_trn)
 summary(model_log)
+calc_test_rmse(model_log)
+
 vif(model_log)
 diagnostics(model_additive)
 
@@ -195,9 +217,10 @@ diagnostics(model_additive)
 We can see that our new log model is still not bale to pass the test.
 
 ```{r}
-model_poly = lm(Enrollment.rate ~ poly(SAT.verb.75, degree = 2)+poly(SAT.math.75,2)+poly(ACT.engl.75,2)+poly(ACT.math.75,2)+Cost.ratio+Gender.ratio+Regions+Location.type, data = Enrollment)
+model_poly = lm(Enrollment.rate ~ poly(SAT.verb.75, degree = 2)+poly(SAT.math.75,2)+poly(ACT.engl.75,2)+poly(ACT.math.75,2)+Cost.ratio+Gender.ratio+Regions+Location.type, data = enrollment_trn)
 
 summary(model_poly)
+calc_test_rmse(model_poly)
 
 
 
@@ -214,19 +237,33 @@ cor(Enrollment[-c(1,8,9)])
 
 Vif and diagnostic test tells us that poly transformation are not improving the model and rather making it more worst.
 
-```{r}
+```{r eval=FALSE}
 
 enroll_boxbox = boxcox(model_log,lambda = seq(-0.3, 0.4, length = 10),  plotit = TRUE)
-lambda = enroll_boxbox$'x'[which.max(enroll_boxbox$y)]
+lambda = 0.1
 
 # modified additive LM with all remaining variables
-model_boxcox_log = lm((((Enrollment.rate ^ lambda) - 1 ) / lambda) ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = Enrollment)
+model_boxcox_log = lm((((Enrollment.rate ^ lambda) - 1 ) / lambda) ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = enrollment_trn)
 summary(model_boxcox_log)
+calc_test_rmse(model_boxcox_log)
 
 ```
+```{r eval=false}
+#vif(model_boxcox_log)
+#diagnostics(model_boxcox_log)
+```
+
+We look adding more interaction term and AIC, BIC for model selection
+
 ```{r}
-vif(model_boxcox_log)
-diagnostics(model_boxcox_log)
+
+model_interactive = lm(Enrollment.rate ~ (log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type)^2, data = enrollment_trn)
+chose_int = step(model_interactive,trace=0)
+summary(chose_int)
+calc_test_rmse(chose_int)
+
+#vif(chose_int)
+#diagnostics(chose_int)
 
 ```
 
