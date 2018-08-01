@@ -161,7 +161,12 @@ diagnostics = function(model, pcol = "grey", lcol = "dodgerblue", alpha = 0.05, 
   }
 }
 
+calc_loocv_rmse = function(model) {
+  sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
+}
+
 diagnostics(model_additive)
+calc_loocv_rmse(model_additive)
 ```
 
 Fitted vs Residual plot clearly shows a pattern and normality and equal variance assumptions are suspect.
@@ -176,6 +181,7 @@ which(vif(model_additive) > 5)
 
 ```{r}
 pairs(Enrollment)
+cor(Enrollment[-c(1,8,9)])
 ```
 ```{r}
 model_log = lm(Enrollment.rate ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = Enrollment)
@@ -201,6 +207,8 @@ We can see that none of polynomial predictor is signifact in model.
 ```{r}
 vif(model_poly)
 diagnostics(model_poly)
+cor(Enrollment[-c(1,8,9)])
+
 
 ```
 
@@ -219,14 +227,22 @@ summary(model_boxcox_log)
 ```{r}
 vif(model_boxcox_log)
 diagnostics(model_boxcox_log)
+
 ```
 
 ```{r}
-model
+library(betareg)
+library(memisc)
+hist(Enrollment$Enrollment.rate)
 
-model = lm(log(Enrollment.rate) ~ (.-School.ID - School.name), data = Enrollment_data)
-chosen = step(model,trace=0)
-summary(model)
+model.beta = betareg(Enrollment.rate ~ ., data = Enrollment)
+mtable(model.beta)
+
+model.beta2 =  betareg( Enrollment.rate ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+
+  Regions+Location.type, data = Enrollment)
+mtable(model.beta2)
+
+#model.beta1 = betareg((((Enrollment.rate ^ lambda) - 1 ) / lambda) ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = Enrollment)
 ```
 
 
