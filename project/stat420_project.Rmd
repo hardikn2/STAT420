@@ -241,7 +241,7 @@ mtable(model.beta)
 model.beta2 =  betareg( Enrollment.rate ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+
   Regions+Location.type, data = Enrollment)
 mtable(model.beta2)
-
+diagnostics(model.beta)
 #model.beta1 = betareg((((Enrollment.rate ^ lambda) - 1 ) / lambda) ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = Enrollment)
 ```
 
