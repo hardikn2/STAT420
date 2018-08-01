@@ -124,11 +124,82 @@ remove = c("State","Location.type.detailed")
 Enrollment_data = Enrollment_data_detailed[ , !(names(Enrollment_data_detailed) %in% remove)]
 ```
 
+
+```{r}
+Enrollment = Enrollment_data[-(c(1,2))]
+
+```
+
+Lets start with simple additive model.
 ```{r}
 # When you model make sure to remove School.ID and School.Name
-model = lm(Enrollment.Rate ~ (.-School.ID - School.Name -State)^2, data = Enrollment_data)
-chosen = step(model, trace = 0)
+model_additive = lm(Enrollment.rate ~ ., data = Enrollment)
+summary(model_additive)
 ```
+
+We can see that t-test is failed to reject but Adjusted R-squared is very low.
+
+```{r}
+diagnostics = function(model, pcol = "grey", lcol = "dodgerblue", alpha = 0.05, plotit = TRUE,
+                       testit = TRUE) {
+  
+  if (plotit == TRUE) {
+    par(mfrow = c(1, 2))
+    
+    plot(fitted(model) , resid(model), col = pcol, pch = 20, 
+         xlab = "Fitted", ylab = "Residuals", main = "Fitted vs Residuals")
+    abline(h = 0, col = lcol, lwd = 2)
+    
+    qqnorm(resid(model), col = pcol, pch = 20)
+    qqline(resid(model), col = lcol, lwd = 2)
+  }
+  
+  if (testit == TRUE) {
+    p_val = shapiro.test(resid(model))$p.value
+    decision = ifelse(p_val < alpha, "Reject", "Fail to Reject")
+    list(p_val = p_val, decision = decision)
+  }
+}
+
+diagnostics(model_additive)
+```
+
+Fitted vs Residual plot clearly shows a pattern and normality and equal variance assumptions are suspect.
+
+```{r}
+library(car)
+car::vif(model_additive)
+which(vif(model_additive) > 5)
+
+```
+
+
+```{r}
+pairs(Enrollment)
+```
+```{r}
+model_log = lm(Enrollment.rate ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = Enrollment)
+summary(model_log)
+vif(model_log)
+diagnostics(model_additive)
+
+
+```
+```{r}
+# not sure what is wrong here
+
+boxcox(model_log,lambda = seq(-0.3, 0.4, length = 10),  plotit = TRUE)
+
+```
+
+```{r}
+model
+
+model = lm(log(Enrollment.rate) ~ (.-School.ID - School.name), data = Enrollment_data)
+chosen = step(model,trace=0)
+summary(model)
+```
+
 
 ## Reference
 
