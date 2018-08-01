@@ -85,8 +85,11 @@ Enrollment_data_full = data.frame(
     ACT.engl.75 = adm$ACTEN75,
     ACT.math.75 = adm$ACTMT75,
     Cost.ratio = cost_ratio,
-    Gender.ratio = gender_ratio
+    Gender.ratio = gender_ratio,
+    SAT = adm$SATVR75+adm$SATMT75,
+    ACT = adm$ACTEN75 + adm$ACTMT75
 )
+Enrollment_data_full
 Enrollment_data_detailed = na.omit(Enrollment_data_full)
 ```
 
@@ -140,8 +143,8 @@ enrollment_idx = sample(nrow(Enrollment), 100)
 enrollment_trn = Enrollment[-enrollment_idx, ]
 enrollment_tst = Enrollment[enrollment_idx, ]
 
-calc_test_rmse <- function(model){
-  predictions <- predict(model, enrollment_tst)
+calc_test_rmse <- function(model,log=FALSE){
+  predictions <- ifelse(log, exp(predict(model, enrollment_tst)), predict(model, enrollment_tst))
   sqrt(mean((enrollment_tst$Enrollment.rate - predictions) ^ 2))
   #rmse(enrollment_tst$Enrollment.rate, predictions)
 }
@@ -281,7 +284,41 @@ mtable(model.beta2)
 diagnostics(model.beta)
 #model.beta1 = betareg((((Enrollment.rate ^ lambda) - 1 ) / lambda) ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = Enrollment)
 ```
+```{r}
+enrollment_trn = enrollment_trn[-c(2,3,4,5)]
+enrollment_tst = enrollment_tst[-c(2,3,4,5)]
 
+model_additive = lm(Enrollment.rate ~ .-ACT, data = enrollment_trn)
+summary(model_additive)
+calc_test_rmse(model_additive)
+vif(model_additive)
+diagnostics(model_additive)
+
+cd = cooks.distance(model_additive)
+model_additive = lm(Enrollment.rate ~ .-ACT, data = enrollment_trn, subset = cd <= 4/length(resid(model_additive)))
+summary(model_additive)
+calc_test_rmse(model_additive)
+#vif(model_additive)
+diagnostics(model_additive)
+
+```
+
+```{r}
+model_interactive = lm(log(Enrollment.rate) ~ (SAT+Cost.ratio+Gender.ratio+Regions+Location.type)^2, data = enrollment_trn)
+chose_int = step(model_interactive,trace=0)
+summary(chose_int)
+
+calc_test_rmse(chose_int,TRUE)
+diagnostics(model_interactive)
+
+cd = cooks.distance(model_interactive)
+keep = cd <= 4/length(resid(model_interactive))
+model_interactive = lm(log(Enrollment.rate) ~ (SAT+Cost.ratio+Gender.ratio+Regions+Location.type)^2, data = enrollment_trn, subset = keep)
+chose_int = step(model_interactive,trace=0)
+summary(chose_int)
+diagnostics(chose_int)
+calc_test_rmse(chose_int,TRUE)
+```
 
 ## Reference
 
