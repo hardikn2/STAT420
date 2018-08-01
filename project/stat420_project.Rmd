@@ -194,24 +194,24 @@ calc_test_rmse(model_additive)
 
 Fitted vs Residual plot clearly shows a pattern and normality and equal variance assumptions are suspect.
 
-```{r}
+```{r eval=FALSE}
 library(car)
-car::vif(model_additive)
+#car::vif(model_additive)
 which(vif(model_additive) > 5)
 
 ```
 
 
 ```{r}
-pairs(enrollment_trn)
-cor(enrollment_trn[-c(1,8,9)])
+#pairs(enrollment_trn)
+#cor(enrollment_trn[-c(1,8,9)])
 ```
 ```{r}
 model_log = lm(Enrollment.rate ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = enrollment_trn)
 summary(model_log)
 calc_test_rmse(model_log)
 
-vif(model_log)
+#vif(model_log)
 diagnostics(model_additive)
 
 
@@ -230,7 +230,7 @@ calc_test_rmse(model_poly)
 ```
 We can see that none of polynomial predictor is signifact in model.
 
-```{r}
+```{r eval =FALSE}
 vif(model_poly)
 diagnostics(model_poly)
 cor(Enrollment[-c(1,8,9)])
@@ -318,6 +318,7 @@ chose_int = step(model_interactive,trace=0)
 summary(chose_int)
 diagnostics(chose_int)
 calc_test_rmse(chose_int,TRUE)
+summary(chose_int)
 ```
 
 ## Reference
