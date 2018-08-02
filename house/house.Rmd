@@ -40,10 +40,12 @@ We use backward BIC to identify a better model
 The introduction section should relay what you are attempting to accomplish. It should provide enough background to your work such that a reader would not need to load your data to understand your report. Like the simulation project, you can assume the reader is familiar with the course concepts, but not your data. 
 What is this data? Where did it come from? What are the variables? Why is it interesting to you?
 Why are you creating a model for this data? What is the goal of this model?
-Preparation
+
+##Preparation
 This section should contain any information about data preparation that is performed to the original data before modelling. 
 Method
 Then you will apply methods seen in class, which may include some of the following but are not limited to:
+
 Multiple linear regression
 Dummy variables
 Interaction
@@ -65,6 +67,7 @@ library(faraway)
 ```
 
 ```{r}
+set.seed(1234)
 house_data_raw = read.table("kc_house_data.csv", header = T, sep = ",")
 
 house_data_raw = na.omit(house_data_raw)
