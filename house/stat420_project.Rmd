@@ -37,9 +37,20 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 house_data_raw = read.table("kc_house_data.csv", header = T, sep = ",")
 
+house_data_base = house_data_raw
+house_data_base$bedrooms = as.factor(house_data_raw$bedrooms)
+house_data_base$bedrooms = as.factor(house_data_raw$bathrooms)
+house_data_base$floors = as.factor(house_data_raw$floors)
+house_data_base$view = as.factor(house_data_raw$view)
+house_data_base$waterfront = as.factor(house_data_raw$waterfront)
+house_data_base$condition = as.factor(house_data_raw$condition)
+
+
+
+
 # Remove the variables 
-remove = c("id")
-house_data = house_data_raw[ , !(names(house_data_raw) %in% remove)]
+remove = c("id","date","zipcode")
+house_data = house_data_base[ , !(names(house_data_base) %in% remove)]
 
 house_idx = sample(nrow(house_data), 1000)
 house_trn = house_data[-house_idx, ]
@@ -48,25 +59,35 @@ house_tst = house_data[house_idx, ]
 calc_test_rmse <- function(model,log=FALSE){
   predictions <- ifelse(log, exp(predict(model, house_tst)), predict(model, house_tst))
   sqrt(mean((house_tst$price - predictions) ^ 2))
-  #rmse(enrollment_tst$Enrollment.rate, predictions)
 }
 
 ```
 
 ```{r}
-model_additive = lm(price ~ .-date ,data = house_trn)
+model_additive = lm(price ~ . ,data = house_trn)
+
+model_bic = step(model_additive,trace=0, k= log(length(resid(model_additive))))
+summary(model_bic)
+
 summary(model_additive)
 calc_test_rmse(model_additive)
+
+pairs(house_trn)
+
 
 model_add_aic= step(model_additive,trace=0)
 summary(model_add_aic)$adj.r.squared
 calc_test_rmse(model_add_aic)
 
 
-model_interactive = lm(price ~ (.-date)^2 ,data = house_trn)
+model_interactive = lm(price ~ (bedrooms + bathrooms + sqft_living + waterfront + 
+    view + condition + grade + sqft_above + yr_built + yr_renovated + 
+    zipcode + lat + long + sqft_living15 + sqft_lot15)^2 ,data = house_trn)
+
 summary(model_interactive)
 model_aic = step(model_interactive,trace=0)
 calc_test_rmse(model_aic)
+
 summary(model_aic)
 model_bic = step(model_interactive,trace=0, k= log(length(resid(model_interactive))))
 summary(model_bic)
