@@ -67,7 +67,7 @@ library(faraway)
 ```
 
 ```{r}
-set.seed(1234)
+set.seed(6)
 house_data_raw = read.table("kc_house_data.csv", header = T, sep = ",")
 
 house_data_raw = na.omit(house_data_raw)
@@ -136,7 +136,7 @@ calc_loocv_rmse = function(model) {
 ```
 
 ```{r}
-model_additive = lm(price ~ . -grade - bathrooms - bedrooms - yr_built - yr_renovated -sqft_basement -bathrooms_comp -sqft_above, data = house_trn)
+model_additive = lm(price ~ . , data = house_trn)
 summary(model_additive)
 car::vif(model_additive)
 calc_loocv_rmse(model_additive)
@@ -159,9 +159,18 @@ plot(model_bic)
 model_additive = lm(log(price) ~ sqft_living + floors + waterfront + view + 
     condition + lat + long + sqft_living15 + sqft_lot15 + bedrooms_comp + 
     age, data = house_trn)
+#summary(model_additive)
+#car::vif(model_additive)
+#calc_test_rmse(model_additive,TRUE)
+
+cd = cooks.distance(model_additive)
+model_additive = lm(log(price) ~ sqft_living + floors + waterfront + view + 
+    condition + lat + long + sqft_living15 + sqft_lot15 + bedrooms_comp + 
+    age, data = house_trn, subset = cd <= 4/length(resid(model_additive)))
 summary(model_additive)
-car::vif(model_additive)
 calc_test_rmse(model_additive,TRUE)
+calc_loocv_rmse(model_additive)
+
 plot(model_additive)
 diagnostics(model_additive)
 
