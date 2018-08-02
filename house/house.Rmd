@@ -35,6 +35,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(plyr)
 library(MASS)
 library(ggplot2)
+library(faraway)
 ```
 
 ```{r}
@@ -65,7 +66,7 @@ house_data_base$grade = as.factor(house_data_base$grade)
 remove = c("id","date","zipcode")
 house_data = house_data_base[ , !(names(house_data_base) %in% remove)]
 
-house_idx = sample(nrow(house_data), 5000)
+house_idx = sample(nrow(house_data), 18000)
 house_trn = house_data[-house_idx, ]
 house_tst = house_data[house_idx, ]
 
@@ -77,19 +78,65 @@ calc_test_rmse = function(model,log=FALSE){
 ```
 
 ```{r}
+diagnostics = function(model, pcol = "grey", lcol = "dodgerblue", alpha = 0.05, plotit = TRUE,
+                       testit = TRUE) {
+  
+  if (plotit == TRUE) {
+    par(mfrow = c(1, 2))
+    
+    plot(fitted(model) , resid(model), col = pcol, pch = 20, 
+         xlab = "Fitted", ylab = "Residuals", main = "Fitted vs Residuals")
+    abline(h = 0, col = lcol, lwd = 2)
+    
+    qqnorm(resid(model), col = pcol, pch = 20)
+    qqline(resid(model), col = lcol, lwd = 2)
+  }
+  
+  if (testit == TRUE) {
+    p_val = shapiro.test(resid(model))$p.value
+    decision = ifelse(p_val < alpha, "Reject", "Fail to Reject")
+    list(p_val = p_val, decision = decision)
+  }
+}
+
+calc_loocv_rmse = function(model) {
+  sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
+}
 
 ```
 
 ```{r}
-model_additive = lm(price ~ . -grade - bathrooms - bedrooms - yr_built - yr_renovated, data = house_trn)
+model_additive = lm(price ~ . -grade - bathrooms - bedrooms - yr_built - yr_renovated -sqft_basement -bathrooms_comp -sqft_above, data = house_trn)
 summary(model_additive)
+car::vif(model_additive)
+calc_loocv_rmse(model_additive)
+#calc_test_rmse(model_additive)
+```
+
+```{r}
+
+
 
 model_bic = step(model_additive,trace=0, k= log(length(resid(model_additive))))
 
 summary(model_bic)
-calc_test_rmse(model_bic)
+calc_loocv_rmse(model_bic)
+diagnostics(model_bic)
+plot(model_bic)
+```
+
+```{r}
+model_additive = lm(log(price) ~ sqft_living + floors + waterfront + view + 
+    condition + lat + long + sqft_living15 + sqft_lot15 + bedrooms_comp + 
+    age, data = house_trn)
+summary(model_additive)
+car::vif(model_additive)
+calc_test_rmse(model_additive,TRUE)
+plot(model_additive)
+diagnostics(model_additive)
 
 ```
+
 
 ```{r}
 keep = c("bedrooms" , "sqft_living" , "floors" , "waterfront" , 
@@ -113,9 +160,9 @@ model_aic = stepAIC(model_interactive, direction = "both",trace = FALSE)
 calc_test_rmse(model_aic)
 
 # summary(model_aic)
-# model_bic = step(model_interactive,trace=0, k= log(length(resid(model_interactive))))
-# summary(model_bic)
-# calc_test_rmse(model_bic)
+model_bic = step(model_interactive,trace=0, k= log(length(resid(model_interactive))))
+summary(model_bic)
+calc_test_rmse(model_bic)
 
 ```
 
