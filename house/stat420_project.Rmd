@@ -22,17 +22,13 @@ urlcolor: cyan
 
 A tentitive title for this Data Analysis Project is: 
 
-*Enrollment Rate across US Universities*
+*Housing price prediction*
 
 ## Research Statement
 
-We are looking to study how enrollment rate (Enrollment / Application) across US University is affected by tuition, location, test scores .... This is one of the essential questions asked by not only prospective students (domestic and international) and their parents but also by other stakeholders, for example, school deans, counselors, Standardized Test tutors. We are hoping that with this model, prospective students will have a better idea of their chances to be enrolled in a school based on their high school and test results and other factors that are considered when choosing a school. 
 
 ## Data
 
-Our data comes from IPEDS (https://nces.ed.gov/ipeds/use-the-data), a publicly available data by NCES from every Title IV-eligible institution as required by the Higher Education Act of 1965. The data provides characteristics of institutions (Programs, majors, highest level of awards, tuition…), students enrollments and admission (SAT, ACT, ethnicity...), completions (race, ethnicity, gender, level of awards, graduation rates...), and other outcomes. The following datasets are extracted for the year 2016: Institutional Characteristic Data, Admission and Test Scores Data, Fall Enrollments. All datasets are linked by Institution ID. For this study the most relevant variables/predictors are (among others): Institution ID, names, states and location type (taken from Instidutional Characteristic data set: hd2016.cvs), 75th percentile SAT and ACT scores (taken from Admission and Test Scores data set: adm2016.cvs), and tuition and other fees (taken from Instidutional Characteristic data set: IC2016_AY.cvs). We will be looking at the enrollment rate given by:
-\[\text{Enrollment Rate} = \frac{\text{Enrollment}}{\text{Applications}}\]
-(Enrollment and application taken from Admission and Test Scores data set: adm2016.cvs)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -45,7 +41,7 @@ house_data_raw = read.table("kc_house_data.csv", header = T, sep = ",")
 remove = c("id")
 house_data = house_data_raw[ , !(names(house_data_raw) %in% remove)]
 
-house_idx = sample(nrow(Enrollment), 1000)
+house_idx = sample(nrow(house_data), 1000)
 house_trn = house_data[-house_idx, ]
 house_tst = house_data[house_idx, ]
 
@@ -62,288 +58,24 @@ model_additive = lm(price ~ .-date ,data = house_trn)
 summary(model_additive)
 calc_test_rmse(model_additive)
 
+model_add_aic= step(model_additive,trace=0)
+summary(model_add_aic)$adj.r.squared
+calc_test_rmse(model_add_aic)
+
+
 model_interactive = lm(price ~ (.-date)^2 ,data = house_trn)
 summary(model_interactive)
 model_aic = step(model_interactive,trace=0)
 calc_test_rmse(model_aic)
 summary(model_aic)
-model_bic = step(model_interactive,trace=0, k= log(legth(resid(model_interactive))))
+model_bic = step(model_interactive,trace=0, k= log(length(resid(model_interactive))))
 summary(model_bic)
 calc_test_rmse(model_bic)
 
 
 ```
 
-```{r}
-as.numeric.factor  =  function(x) {
-    as.numeric(levels(x))[x]}
-```
 
-```{r message=FALSE, warning=FALSE}
-# Sum of all expected cost: Tuition, Fees, Books, on campus Room and Board, other Expenses
-in_cost = as.numeric.factor(tuition$CHG2AY3) + as.numeric.factor(tuition$CHG4AY3) + as.numeric.factor(tuition$CHG5AY3) + as.numeric.factor(tuition$CHG6AY3)
-out_cost = as.numeric.factor(tuition$CHG3AY3) + as.numeric.factor(tuition$CHG4AY3) + as.numeric.factor(tuition$CHG5AY3) + as.numeric.factor(tuition$CHG6AY3)
-
-# ratio of in-state to out-state costs
-cost_ratio = in_cost / out_cost
-# ratio of freshman male to female enrolled 
-gender_ratio = adm$ENRLFTM / adm$ENRLFTW
-# enrollment rate
-rate = adm$ENRLT / adm$APPLCN
-```
-
-```{r}
-Enrollment_data_full = data.frame(
-    School.ID = charact$UNITID,
-    School.name = charact$INSTNM,
-    Enrollment.rate = rate,
-    State = charact$STABBR,
-    Location.type.detailed = charact$LOCALE,
-    SAT.verb.75 = adm$SATVR75,
-    SAT.math.75 = adm$SATMT75,
-    ACT.engl.75 = adm$ACTEN75,
-    ACT.math.75 = adm$ACTMT75,
-    Cost.ratio = cost_ratio,
-    Gender.ratio = gender_ratio,
-    SAT = adm$SATVR75+adm$SATMT75,
-    ACT = adm$ACTEN75 + adm$ACTMT75
-)
-Enrollment_data_full
-Enrollment_data_detailed = na.omit(Enrollment_data_full)
-```
-
-```{r}
-# To group the states into regions and to simplify the Location types to have fewer, more generalized, categorical values
-NE.abrv = c("CT","ME","MA","NH","RI","VT","NJ","NY","PA")
-MW.abrv = c("IN","IL","MI","OH","WI","IA","KS","MN","MO","NE",
-             "ND","SD")
-S.abrv = c("DE","DC","FL","GA","MD","NC","SC","VA","WV","AL",
-            "KY","MS","TN","AR","LA","OK","TX")
-W.abrv = c("AZ","CO","ID","NM","MT","UT","NV","WY","AK","CA",
-            "HI","OR","WA")
-O.abrv <- c("PR","VI","GU","FM")
-region.list = list(
-  Northeast = NE.abrv,
-  Midwest = MW.abrv,
-  South = S.abrv,
-  West = W.abrv,
-  Other = O.abrv)
-
-City.type = c(11,12,13)
-Suburbs.type = c(21,22,23)
-Town.type = c(31,32,33)
-Rural.type = c(41,42,43)
-
-type.list = list(
-  City = City.type,
-  Suburs = Suburbs.type,
-  Town = Town.type,
-  Rural = Rural.type)
-
-Enrollment_data_detailed$Regions = sapply(Enrollment_data_detailed$State, 
-                 function(x) names(region.list)[grep(x,region.list)])
-Enrollment_data_detailed$Location.type = sapply(Enrollment_data_detailed$Location.type.detailed, 
-                 function(x) names(type.list)[grep(x,type.list)])
-Enrollment_data_detailed$Regions =  as.factor(Enrollment_data_detailed$Regions)
-Enrollment_data_detailed$Location.type = as.factor(Enrollment_data_detailed$Location.type)
-```
-
-```{r}
-# Remove the variables that were transformed into factor variables
-remove = c("State","Location.type.detailed")
-Enrollment_data = Enrollment_data_detailed[ , !(names(Enrollment_data_detailed) %in% remove)]
-```
-
-
-```{r}
-Enrollment = Enrollment_data[-(c(1,2))]
-
-enrollment_idx = sample(nrow(Enrollment), 100)
-enrollment_trn = Enrollment[-enrollment_idx, ]
-enrollment_tst = Enrollment[enrollment_idx, ]
-
-calc_test_rmse <- function(model,log=FALSE){
-  predictions <- ifelse(log, exp(predict(model, enrollment_tst)), predict(model, enrollment_tst))
-  sqrt(mean((enrollment_tst$Enrollment.rate - predictions) ^ 2))
-  #rmse(enrollment_tst$Enrollment.rate, predictions)
-}
-```
-
-Lets start with simple additive model.
-```{r}
-# When you model make sure to remove School.ID and School.Name
-model_additive = lm(Enrollment.rate ~ ., data = enrollment_trn)
-summary(model_additive)
-calc_test_rmse(model_additive)
-```
-
-We can see that t-test is failed to reject but Adjusted R-squared is very low.
-
-```{r}
-diagnostics = function(model, pcol = "grey", lcol = "dodgerblue", alpha = 0.05, plotit = TRUE,
-                       testit = TRUE) {
-  
-  if (plotit == TRUE) {
-    par(mfrow = c(1, 2))
-    
-    plot(fitted(model) , resid(model), col = pcol, pch = 20, 
-         xlab = "Fitted", ylab = "Residuals", main = "Fitted vs Residuals")
-    abline(h = 0, col = lcol, lwd = 2)
-    
-    qqnorm(resid(model), col = pcol, pch = 20)
-    qqline(resid(model), col = lcol, lwd = 2)
-  }
-  
-  if (testit == TRUE) {
-    p_val = shapiro.test(resid(model))$p.value
-    decision = ifelse(p_val < alpha, "Reject", "Fail to Reject")
-    list(p_val = p_val, decision = decision)
-  }
-}
-
-calc_loocv_rmse = function(model) {
-  sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
-}
-
-diagnostics(model_additive)
-calc_loocv_rmse(model_additive)
-calc_test_rmse(model_additive)
-
-```
-
-Fitted vs Residual plot clearly shows a pattern and normality and equal variance assumptions are suspect.
-
-```{r eval=FALSE}
-library(car)
-#car::vif(model_additive)
-which(vif(model_additive) > 5)
-
-```
-
-
-```{r}
-#pairs(enrollment_trn)
-#cor(enrollment_trn[-c(1,8,9)])
-```
-```{r}
-model_log = lm(Enrollment.rate ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = enrollment_trn)
-summary(model_log)
-calc_test_rmse(model_log)
-
-#vif(model_log)
-diagnostics(model_additive)
-
-
-```
-
-We can see that our new log model is still not bale to pass the test.
-
-```{r}
-model_poly = lm(Enrollment.rate ~ poly(SAT.verb.75, degree = 2)+poly(SAT.math.75,2)+poly(ACT.engl.75,2)+poly(ACT.math.75,2)+Cost.ratio+Gender.ratio+Regions+Location.type, data = enrollment_trn)
-
-summary(model_poly)
-calc_test_rmse(model_poly)
-
-
-
-```
-We can see that none of polynomial predictor is signifact in model.
-
-```{r eval =FALSE}
-vif(model_poly)
-diagnostics(model_poly)
-cor(Enrollment[-c(1,8,9)])
-
-
-```
-
-Vif and diagnostic test tells us that poly transformation are not improving the model and rather making it more worst.
-
-```{r eval=FALSE}
-
-enroll_boxbox = boxcox(model_log,lambda = seq(-0.3, 0.4, length = 10),  plotit = TRUE)
-lambda = 0.1
-
-# modified additive LM with all remaining variables
-model_boxcox_log = lm((((Enrollment.rate ^ lambda) - 1 ) / lambda) ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = enrollment_trn)
-summary(model_boxcox_log)
-calc_test_rmse(model_boxcox_log)
-
-```
-```{r eval=false}
-#vif(model_boxcox_log)
-#diagnostics(model_boxcox_log)
-```
-
-We look adding more interaction term and AIC, BIC for model selection
-
-```{r}
-
-model_interactive = lm(Enrollment.rate ~ (log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type)^2, data = enrollment_trn)
-chose_int = step(model_interactive,trace=0)
-summary(chose_int)
-calc_test_rmse(chose_int)
-
-#vif(chose_int)
-#diagnostics(chose_int)
-
-```
-
-```{r}
-library(betareg)
-library(memisc)
-hist(Enrollment$Enrollment.rate)
-
-model.beta = betareg(Enrollment.rate ~ ., data = Enrollment)
-mtable(model.beta)
-
-model.beta2 =  betareg( Enrollment.rate ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+
-  Regions+Location.type, data = Enrollment)
-mtable(model.beta2)
-diagnostics(model.beta)
-#model.beta1 = betareg((((Enrollment.rate ^ lambda) - 1 ) / lambda) ~ log(SAT.verb.75)+log(SAT.math.75)+log(ACT.engl.75)+log(ACT.math.75)+Cost.ratio+Gender.ratio+Regions+Location.type, data = Enrollment)
-```
-```{r}
-enrollment_trn = enrollment_trn[-c(2,3,4,5)]
-enrollment_tst = enrollment_tst[-c(2,3,4,5)]
-
-model_additive = lm(Enrollment.rate ~ .-ACT, data = enrollment_trn)
-summary(model_additive)
-calc_test_rmse(model_additive)
-vif(model_additive)
-diagnostics(model_additive)
-
-cd = cooks.distance(model_additive)
-model_additive = lm(Enrollment.rate ~ .-ACT, data = enrollment_trn, subset = cd <= 4/length(resid(model_additive)))
-summary(model_additive)
-calc_test_rmse(model_additive)
-#vif(model_additive)
-diagnostics(model_additive)
-
-```
-
-```{r}
-library(lmtest)
-model_interactive = lm(log(Enrollment.rate) ~ (SAT+Cost.ratio+Gender.ratio+Regions+Location.type)^2, data = enrollment_trn)
-chose_int = step(model_interactive,trace=0)
-summary(chose_int)
-
-calc_test_rmse(chose_int,TRUE)
-diagnostics(model_interactive)
-
-cd = cooks.distance(model_interactive)
-keep = cd <= 4/length(resid(model_interactive))
-model_interactive = lm(log(Enrollment.rate) ~ (SAT+Cost.ratio+Gender.ratio+Regions+Location.type)^2, data = enrollment_trn, subset = keep)
-chose_int = step(model_interactive,trace=0)
-summary(chose_int)
-diagnostics(chose_int)
-calc_test_rmse(chose_int,TRUE)
-summary(chose_int)
-vif(chose_int)
-bptest(chose_int)
-```
 
 ## Reference
 
-National Center for Education Statistics. (1986). IPEDS : Integrated Postsecondary Education Data System : less than two-year institutions. Washington, D.C. :National Center for Education Statistics.
-Integrated Postsecondary Education System. [Data Files]. Retrieved from https://nces.ed.gov/ipeds/use-the-data. [Accessed 07/16/18].
