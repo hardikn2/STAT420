@@ -32,10 +32,12 @@ A tentitive title for this Data Analysis Project is:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(plyr)
+library(MASS)
+library(ggplot2)
 ```
 
 ```{r}
-library(plyr)
 house_data_raw = read.table("kc_house_data.csv", header = T, sep = ",")
 
 house_data_raw = na.omit(house_data_raw)
@@ -67,28 +69,25 @@ house_idx = sample(nrow(house_data), 5000)
 house_trn = house_data[-house_idx, ]
 house_tst = house_data[house_idx, ]
 
-calc_test_rmse <- function(model,log=FALSE){
-  predictions <- ifelse(log, exp(predict(model, house_tst)), predict(model, house_tst))
+calc_test_rmse = function(model,log=FALSE){
+  predictions = ifelse(log, exp(predict(model, house_tst)), predict(model, house_tst))
   sqrt(mean((house_tst$price - predictions) ^ 2))
 }
 
 ```
 
 ```{r}
-model_additive = lm(price ~ . -grade - bathrooms - bedrooms - yr_built - yr_renovated,data = house_trn)
-#summary(model_additive)
+
+```
+
+```{r}
+model_additive = lm(price ~ . -grade - bathrooms - bedrooms - yr_built - yr_renovated, data = house_trn)
+summary(model_additive)
 
 model_bic = step(model_additive,trace=0, k= log(length(resid(model_additive))))
 
 summary(model_bic)
 calc_test_rmse(model_bic)
-
-
-
-
-
-
-
 
 ```
 
@@ -99,39 +98,24 @@ keep = c("bedrooms" , "sqft_living" , "floors" , "waterfront" ,
 house_data_numeric = house_data_raw
 house_data_numeric = house_data_raw[ , (names(house_data_raw) %in% keep)]
 
-pairs()
+#pairs(house_data_numeric)
 cor(house_data_numeric)
 ```
 
-```{r}
-library(ggplot2)
-
-# create data frame with scores
-pca1 = prcomp(house_data_numeric, scale. = TRUE)
-
-scores = as.data.frame(pca1$x)
-
-# plot of observations
-ggplot(data = scores, aes(x = PC1, y = PC2, label = rownames(scores))) +
-  geom_hline(yintercept = 0, colour = "gray65") +
-  geom_vline(xintercept = 0, colour = "gray65") +
-  geom_text(colour = "tomato", alpha = 0.8, size = 4) +
-```
 
 ```{r}
 
-model_interactive = lm(price ~ lat + long + (bathrooms + sqft_living + floors + waterfront + 
-    view + condition + sqft_above + yr_built + sqft_living15 + 
-    sqft_lot15 + bedrooms_comp + bathrooms_comp + age)^2 ,data = house_trn)
+model_interactive = lm(price ~ lat + long +(sqft_living + floors + waterfront + view  + sqft_above +  sqft_living15 + sqft_lot15 + age)^2 + bedrooms_comp + bathrooms_comp + condition,data = house_trn)
 
 summary(model_interactive)$adj.r.squared
-model_aic = step(model_interactive,trace=0)
+# model_aic = step(model_interactive,trace=0)
+model_aic = stepAIC(model_interactive, direction = "both",trace = FALSE)
 calc_test_rmse(model_aic)
 
-summary(model_aic)
-model_bic = step(model_interactive,trace=0, k= log(length(resid(model_interactive))))
-summary(model_bic)
-calc_test_rmse(model_bic)
+# summary(model_aic)
+# model_bic = step(model_interactive,trace=0, k= log(length(resid(model_interactive))))
+# summary(model_bic)
+# calc_test_rmse(model_bic)
 
 ```
 
