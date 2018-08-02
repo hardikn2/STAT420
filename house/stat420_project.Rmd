@@ -44,6 +44,7 @@ house_data_base$floors = as.factor(house_data_raw$floors)
 house_data_base$view = as.factor(house_data_raw$view)
 house_data_base$waterfront = as.factor(house_data_raw$waterfront)
 house_data_base$condition = as.factor(house_data_raw$condition)
+house_data_base$grade = as.factor(house_data_raw$grade)
 
 
 
@@ -65,26 +66,56 @@ calc_test_rmse <- function(model,log=FALSE){
 
 ```{r}
 model_additive = lm(price ~ . ,data = house_trn)
+summary(model_additive)
 
 model_bic = step(model_additive,trace=0, k= log(length(resid(model_additive))))
+
 summary(model_bic)
-
-summary(model_additive)
-calc_test_rmse(model_additive)
-
-pairs(house_trn)
+calc_test_rmse(model_bic)
 
 
+
+
+
+
+
+
+```
+
+```{r}
+remove = c("id","date","zipcode")
+house_data_numeric = house_data_raw
+house_data_numeric = house_data_raw[ , !(names(house_data_raw) %in% remove)]
+
+cor(house_data_numeric)
+```
+
+```{r}
+library(ggplot2)
+
+# create data frame with scores
+pca1 = prcomp(house_data_numeric, scale. = TRUE)
+
+scores = as.data.frame(pca1$x)
+
+# plot of observations
+ggplot(data = scores, aes(x = PC1, y = PC2, label = rownames(scores))) +
+  geom_hline(yintercept = 0, colour = "gray65") +
+  geom_vline(xintercept = 0, colour = "gray65") +
+  geom_text(colour = "tomato", alpha = 0.8, size = 4) +
+```
+
+```{r}
 model_add_aic= step(model_additive,trace=0)
 summary(model_add_aic)$adj.r.squared
 calc_test_rmse(model_add_aic)
 
 
-model_interactive = lm(price ~ (bedrooms + bathrooms + sqft_living + waterfront + 
-    view + condition + grade + sqft_above + yr_built + yr_renovated + 
-    zipcode + lat + long + sqft_living15 + sqft_lot15)^2 ,data = house_trn)
+model_interactive = lm(price ~ (bedrooms + sqft_living + floors + waterfront + 
+    view + condition + grade + yr_built + yr_renovated + lat + 
+    long + sqft_living15 + sqft_lot15)^2 ,data = house_trn)
 
-summary(model_interactive)
+summary(model_interactive)$adj.r.squared
 model_aic = step(model_interactive,trace=0)
 calc_test_rmse(model_aic)
 
@@ -93,9 +124,7 @@ model_bic = step(model_interactive,trace=0, k= log(length(resid(model_interactiv
 summary(model_bic)
 calc_test_rmse(model_bic)
 
-
 ```
-
 
 
 ## Reference
