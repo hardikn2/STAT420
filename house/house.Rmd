@@ -26,6 +26,32 @@ A tentitive title for this Data Analysis Project is:
 
 ## Research Statement
 
+We are looking to study how house price ($) can be predicted using various factors, such as the number of bedrooms, view, location, condition etc. This is one of the essential questions asked by almost every family when they decide to buy a new house. The goal of  our model is to help a buyer identify a house price based on their preferred option. 
+Dataset: Our data comes from a publicly available dataset “House Sales Prediction” on Kaggle. It consists of 21,613 observation and 21 variables. The price unit is selected as our continuous response value,  expressed in USA $. We did not include ID (we are not considering each house as individual subjects for mixed model), Date (we are not interested in a time series analysis in this analysis), zipcode, latitude and longitude (the data covers only King county). Among our independent variables, we have 3 categorical factors: waterfront (0 and 1), condition (1-5), view (1-4). The price range of our data set is between 75K and  ~8M with a chi-square distribution (positively skewed). 
+
+##Data Preprocessing
+Several variable
+Methods and Evaluation
+We use cor and pair to test for correlation between variables
+We use backward BIC to identify a better model
+
+
+##Introduction
+The introduction section should relay what you are attempting to accomplish. It should provide enough background to your work such that a reader would not need to load your data to understand your report. Like the simulation project, you can assume the reader is familiar with the course concepts, but not your data. 
+What is this data? Where did it come from? What are the variables? Why is it interesting to you?
+Why are you creating a model for this data? What is the goal of this model?
+Preparation
+This section should contain any information about data preparation that is performed to the original data before modelling. 
+Method
+Then you will apply methods seen in class, which may include some of the following but are not limited to:
+Multiple linear regression
+Dummy variables
+Interaction
+Residual diagnostics
+Outlier diagnostics
+Transformations
+Polynomial regression
+Model selection
 
 ## Data
 
@@ -63,12 +89,13 @@ house_data_base$condition = as.factor(house_data_base$condition)
 house_data_base$grade = as.factor(house_data_base$grade)
 
 # Remove the variables 
-remove = c("id","date","zipcode")
-house_data = house_data_base[ , !(names(house_data_base) %in% remove)]
+remove = c("id","date","zipcode", "bedrooms", "bathrooms","yr_built", "yr_renovated","sqft_basement")
 
+house_data = house_data_base[ , !(names(house_data_base) %in% remove)]
 house_idx = sample(nrow(house_data), 18000)
 house_trn = house_data[-house_idx, ]
 house_tst = house_data[house_idx, ]
+
 
 calc_test_rmse = function(model,log=FALSE){
   predictions = ifelse(log, exp(predict(model, house_tst)), predict(model, house_tst))
