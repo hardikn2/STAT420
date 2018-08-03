@@ -100,9 +100,11 @@ house_idx = sample(nrow(house_data), 18000)
 house_trn = house_data[-house_idx, ]
 house_tst = house_data[house_idx, ]
 
-#temorary
+#clean test data to remove outliers and infreqent points
 house_tst = house_tst[as.numeric(house_tst$condition) != 1,]
 house_tst = house_tst[house_tst$bedrooms_comp != 0,]
+house_tst = house_tst[house_tst$price < 2*sd(house_tst$price),]
+
 
 table(house_tst$bedrooms_comp)
 
@@ -153,15 +155,15 @@ diagnostics(model_additive_basic)
 
 ```{r}
 model_additive_test = lm(price ~ . , data = house_tst)
-summary(model_additive_test)
-car::vif(model_additive_test)
-calc_loocv_rmse(model_additive_test)
-calc_test_rmse(model_additive_test)
+summary(model_additive_test)$adj.r.squared
+#car::vif(model_additive_test)
+#calc_loocv_rmse(model_additive_test)
+#calc_test_rmse(model_additive_test)
 diagnostics(model_additive_test)
 ```
 ```{r}
 model_additive_log = lm(log(price) ~ . , data = house_tst)
-summary(model_additive_log)
+summary(model_additive_log)$adj.r.squared
 car::vif(model_additive_log)
 calc_loocv_rmse(model_additive_log)
 calc_test_rmse(model_additive_log)
@@ -174,7 +176,7 @@ diagnostics(model_additive_log)
 
 model_bic = step(model_additive_log,trace=0, k= log(length(resid(model_additive_log))))
 
-summary(model_bic)
+summary(model_bic)$adj.r.squared
 calc_loocv_rmse(model_bic)
 diagnostics(model_bic)
 plot(model_bic)
@@ -196,7 +198,7 @@ summary(model_bic_add)
 cd = cooks.distance(model_bic_add)
 model_bic_add_cook = lm(log(price) ~ sqft_living + floors + waterfront + view + 
     condition + lat + long + sqft_living15  + 
-    age, data = house_trn, subset = cd <= 4/length(resid(model_bic_add_cook)))
+    age, data = house_trn, subset = cd <= 4/length(resid(model_bic_add)))
 summary(model_bic_add_cook)
 exp(calc_loocv_rmse(model_bic_add_cook))
 
