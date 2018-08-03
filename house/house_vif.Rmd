@@ -103,7 +103,7 @@ house_tst = house_data[house_idx, ]
 #clean test data to remove outliers and infreqent points
 house_tst = house_tst[as.numeric(house_tst$condition) != 1,]
 house_tst = house_tst[house_tst$bedrooms_comp != 0,]
-house_tst = house_tst[house_tst$price < 2*sd(house_tst$price),]
+#house_tst = house_tst[house_tst$price < 2*sd(house_tst$price),]
 
 
 ```
@@ -167,7 +167,7 @@ diagnostics(model_additive_test)
 # box cox test indicates having lambda closer to 0 would be benefit the model. 
 # Although 0 is out of the 95 % confidence interval, It is pretty close and didn't want to use fractional value. 
 
-boxcox(model_additive_test, lambda = seq(-0.05, 0.05, length = 10))
+boxcox(model_additive_test, lambda = seq(-0.1, 0.1, length = 20))
 
 ```
 
@@ -185,14 +185,17 @@ car::vif(model_additive_log)
 ```
 
 ```{r}
-model_additive_small = lm(log(price) ~ . -bathrooms_comp -grade, data = house_trn)
-summary(model_additive_small)$adj.r.squared
-car::vif(model_additive_small)
-calc_loocv_rmse(model_additive_small)
-calc_test_rmse(model_additive_small)
-diagnostics(model_additive_small)
+# Series of Anova test for grade and bathroom variable. 
 
-anova(model_additive_small, model_additive_log)
+grade = lm(log(price) ~ .-grade, data = house_trn)
+br = lm(log(price) ~ .- bathrooms_comp, data = house_trn)
+#grade_br = lm(log(price) ~ .-grade - bathrooms_comp, data = house_trn)
+
+anova(grade, model_additive_log)
+anova(br, model_additive_log)
+#anova(grade_br, model_additive_log)
+
+
 ```
 
 ```{r}
@@ -205,7 +208,7 @@ anova(model_additive_small, model_additive_log)
 grade = lm(log(price) ~ .- grade, data = house_trn)
 summary(grade)$adj.r.squared
 # car::vif(grade)
-calc_loocv_rmse(grade)
+#calc_loocv_rmse(grade)
 calc_test_rmse(grade)
 diagnostics(grade)
 
@@ -219,18 +222,19 @@ cor(resid(grade_without_price), resid(price_without_grade))
 ```
 
 ```{r}
-# Series of Anova test for grade and bathroom variable. 
+model_additive_small = lm(log(price) ~ . -bathrooms_comp, data = house_trn)
+summary(model_additive_small)$adj.r.squared
+car::vif(model_additive_small)
+#calc_loocv_rmse(model_additive_small)
+calc_test_rmse(model_additive_small)
+diagnostics(model_additive_small)
 
-# grade = lm(log(price) ~ .-grade, data = house_trn)
-# br = lm(log(price) ~ .- bathrooms_comp, data = house_trn)
-grade_br = lm(log(price) ~ .-grade - bathrooms_comp, data = house_trn)
-
-# anova(grade, model_additive_log)
-# anova(br, model_additive_log)
-anova(grade_br, model_additive_log)
-
-
+anova(model_additive_small, model_additive_log)
 ```
+
+
+
+
 
 
 
