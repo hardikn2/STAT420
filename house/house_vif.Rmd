@@ -274,13 +274,15 @@ Q-Q plot looks good normality is not an suspect anymore.
 
 
 ```{r}
-model_interactive = lm(log(price) ~ sqft_living + sqft_lot + floors + waterfront + 
-    view + condition + grade + lat + long + sqft_living15 + age, data = house_trn)
+model_interactive = lm(log(price) ~ (sqft_living + sqft_lot + floors + waterfront + 
+    view + condition + lat + long + sqft_living15 + age)^2 + grade, data = house_trn)
 
 summary(model_interactive)$adj.r.squared
-# model_aic = step(model_interactive,trace=0)
-model_aic = stepAIC(model_interactive, direction = "both",trace = FALSE)
-calc_test_rmse(model_aic)
+
+model_int_bic = step(model_interactive,trace = FALSE, k=log(length(resid(model_interactive))))
+
+summary(model_int_bic)$adj.r.squared
+calc_test_rmse(model_int_bic)
 
 # summary(model_aic)
 model_bic = step(model_interactive,trace=0, k= log(length(resid(model_interactive))))
