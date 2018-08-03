@@ -106,8 +106,8 @@ house_tst = house_tst[house_tst$bedrooms_comp != 0,]
 house_tst = house_tst[house_tst$price < 2*sd(house_tst$price),]
 
 
-
 ```
+
 
 ```{r}
 calc_test_rmse = function(model,log=FALSE){
@@ -163,19 +163,27 @@ summary(model_additive_test)$adj.r.squared
 calc_test_rmse(model_additive_test)
 diagnostics(model_additive_test)
 ```
+```{r}
+# box cox test indicates having lambda closer to 0 would be benefit the model. 
+# Although 0 is out of the 95 % confidence interval, It is pretty close and didn't want to use fractional value. 
 
+boxcox(model_additive_test, lambda = seq(-0.05, 0.05, length = 10))
+
+```
 
 ```{r}
+# Now it is logged. 
+# adj.r.square increased yay
+
 model_additive_log = lm(log(price) ~ . , data = house_trn)
 summary(model_additive_log)$adj.r.squared
-car::vif(model_additive_log)
-calc_loocv_rmse(model_additive_log)
 calc_test_rmse(model_additive_log)
 diagnostics(model_additive_log)
 ```
 ```{r}
 car::vif(model_additive_log)
 ```
+
 ```{r}
 model_additive_small = lm(log(price) ~ . -bathrooms_comp -grade, data = house_trn)
 summary(model_additive_small)$adj.r.squared
@@ -183,7 +191,48 @@ car::vif(model_additive_small)
 calc_loocv_rmse(model_additive_small)
 calc_test_rmse(model_additive_small)
 diagnostics(model_additive_small)
+
+anova(model_additive_small, model_additive_log)
 ```
+
+```{r}
+# Testing to see if grade is collinear with other variables
+# Although The vif() for the grade came out to be > than 5. It was close to 5 we question collinearity of this variable. 
+# hence we checked anova = very low p value reject null which was the grade model. 
+# and we did partial correlation coef test 0.3481574 which is not close to 0. 
+
+
+grade = lm(log(price) ~ .- grade, data = house_trn)
+summary(grade)$adj.r.squared
+# car::vif(grade)
+calc_loocv_rmse(grade)
+calc_test_rmse(grade)
+diagnostics(grade)
+
+# Partial correlation coefficient test = 0.3481574. 
+
+grade_without_price = lm(grade ~ . - price, data = house_trn)
+price_without_grade = lm(log(price) ~ . - grade, data = house_trn)
+
+cor(resid(grade_without_price), resid(price_without_grade))
+
+```
+
+```{r}
+# Series of Anova test for grade and bathroom variable. 
+
+# grade = lm(log(price) ~ .-grade, data = house_trn)
+# br = lm(log(price) ~ .- bathrooms_comp, data = house_trn)
+grade_br = lm(log(price) ~ .-grade - bathrooms_comp, data = house_trn)
+
+# anova(grade, model_additive_log)
+# anova(br, model_additive_log)
+anova(grade_br, model_additive_log)
+
+
+```
+
+
 
 ```{r}
 model_bic = step(model_additive_small,trace=0, k= log(length(resid(model_additive_small))))
@@ -223,6 +272,9 @@ summary(model_bic_add)$adj.r.squared
 calc_test_rmse(model_bic_add,TRUE)
 diagnostics(model_bic_add)
 ```
+
+
+
 ```{r}
 cd = cooks.distance(model_bic_add)
 model_bic_add_cook = lm(log(price) ~ sqft_living + sqft_lot + floors + waterfront + 
@@ -237,9 +289,15 @@ calc_test_rmse(model_bic_add_cook,TRUE)
 ```
 
 
+
+```{r}
+
+```
+
+
 ```{r}
 plot(model_bic_add_cook)
-shapiro.test(resid(model_bic_add_cook))
+# shapiro.test(resid(model_bic_add_cook))
 vif(model_bic_add_cook)
 bptest(model_bic_add_cook)
 table(as.numeric(house_data_base$condition))
@@ -261,10 +319,12 @@ calc_test_rmse(model_aic)
 
 # summary(model_aic)
 model_bic = step(model_interactive,trace=0, k= log(length(resid(model_interactive))))
-summary(model_bic)
+summary(model_bic)$adj.r.squared
 calc_test_rmse(model_bic)
+plot(model_bic)
 
 ```
+
 
 ```{r}
 keep = c("bedrooms" , "sqft_living" , "floors" , "waterfront" , 
@@ -276,6 +336,7 @@ house_data_numeric = house_data_raw[ , (names(house_data_raw) %in% keep)]
 #pairs(house_data_numeric)
 cor(house_data_numeric)
 ```
+
 
 ## Reference
 House Sales in King County [Dataset] (2016) Kaggle. Available at: https://www.kaggle.com/harlfoxem/housesalesprediction [Accessed July 25, 2018].
