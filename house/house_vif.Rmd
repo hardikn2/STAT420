@@ -222,11 +222,10 @@ cor(resid(grade_without_price), resid(price_without_grade))
 ```
 
 ```{r}
-model_additive_small = lm(log(price) ~ . -bathrooms_comp, data = house_trn)
+model_additive_small = lm(log(price) ~ . -bathrooms_comp -sqft_above, data = house_trn)
 summary(model_additive_small)$adj.r.squared
-car::vif(model_additive_small)
-#calc_loocv_rmse(model_additive_small)
-calc_test_rmse(model_additive_small)
+calc_loocv_rmse(model_additive_small)
+calc_test_rmse(model_additive_small,TRUE)
 diagnostics(model_additive_small)
 
 anova(model_additive_small, model_additive_log)
@@ -235,60 +234,59 @@ anova(model_additive_small, model_additive_log)
 
 
 
+```{r}
+#vif looks good
+car::vif(model_additive_small)
+
+```
 
 
 
 ```{r}
 model_bic = step(model_additive_small,trace=0, k= log(length(resid(model_additive_small))))
-summary(model_bic)
-#$adj.r.squared
+summary(model_bic)$adj.r.squared
 
-calc_loocv_rmse(model_bic)
+#calc_loocv_rmse(model_bic)
 calc_test_rmse(model_bic)
-#diagnostics(model_bic)
-car::vif(model_bic)
-
+diagnostics(model_bic)
 ```
 
-Lets remove sqft_above
 ```{r}
-model_bic_add_new = lm(formula = log(price) ~ (sqft_living + sqft_lot + floors + 
-    waterfront + view + condition + lat + 
-    long + sqft_living15 + sqft_lot15 + bedrooms_comp + 
-    age) , data = house_trn)
-summary(model_bic_add_new)$adj.r.squared
-diagnostics(model_bic_add_new)
-car::vif(model_bic_add_new)
-calc_test_rmse(model_bic_add_new)
-
-
-#
-
-```
-
-
-```{r}
-model_bic_add = lm(log(price) ~ sqft_living + sqft_lot + floors + waterfront + 
-    view + condition  + lat + long + sqft_living15 + sqft_lot15 + 
-    bedrooms_comp + age, data = house_trn)
-summary(model_bic_add)$adj.r.squared
-
-calc_test_rmse(model_bic_add,TRUE)
-diagnostics(model_bic_add)
-```
-
-
-
-```{r}
-cd = cooks.distance(model_bic_add)
+# removing influential data for normality
+cd = cooks.distance(model_bic)
 model_bic_add_cook = lm(log(price) ~ sqft_living + sqft_lot + floors + waterfront + 
-    view + condition + grade + lat + long + sqft_living15 + sqft_lot15 + 
-    bathrooms_comp + age, data = house_trn, subset = cd <= 4/length(resid(model_bic_add)))
+    view + condition + grade + lat + long + sqft_living15 + age, 
+    data = house_trn, subset = cd <= 4/length(resid(model_bic)))
 
 summary(model_bic_add_cook)$adj.r.squared
-diagnostics(model_bic_add_cook)
 calc_test_rmse(model_bic_add_cook,TRUE)
 
+diagnostics(model_bic_add_cook)
+
+
+```
+
+Q-Q plot looks good normality is not an suspect anymore.
+
+```{r}
+```
+
+
+
+```{r}
+model_interactive = lm(log(price) ~ sqft_living + sqft_lot + floors + waterfront + 
+    view + condition + grade + lat + long + sqft_living15 + age, data = house_trn)
+
+summary(model_interactive)$adj.r.squared
+# model_aic = step(model_interactive,trace=0)
+model_aic = stepAIC(model_interactive, direction = "both",trace = FALSE)
+calc_test_rmse(model_aic)
+
+# summary(model_aic)
+model_bic = step(model_interactive,trace=0, k= log(length(resid(model_interactive))))
+summary(model_bic)$adj.r.squared
+calc_test_rmse(model_bic)
+plot(model_bic)
 
 ```
 
