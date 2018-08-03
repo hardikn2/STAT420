@@ -64,10 +64,11 @@ library(plyr)
 library(MASS)
 library(ggplot2)
 library(faraway)
+library(lmtest)
 ```
 
 ```{r}
-set.seed(6)
+set.seed(2)
 house_data_raw = read.table("kc_house_data.csv", header = T, sep = ",")
 
 house_data_raw = na.omit(house_data_raw)
@@ -99,6 +100,11 @@ house_idx = sample(nrow(house_data), 18000)
 house_trn = house_data[-house_idx, ]
 house_tst = house_data[house_idx, ]
 
+#temorary
+house_tst = house_tst[as.numeric(house_tst$condition) != 1,]
+house_tst = house_tst[house_tst$bedrooms_comp != 0,]
+
+table(house_tst$bedrooms_comp)
 
 calc_test_rmse = function(model,log=FALSE){
   predictions = ifelse(log, exp(predict(model, house_tst)), predict(model, house_tst))
@@ -136,18 +142,37 @@ calc_loocv_rmse = function(model) {
 ```
 
 ```{r}
-model_additive = lm(price ~ . , data = house_trn)
-summary(model_additive)
-car::vif(model_additive)
-calc_loocv_rmse(model_additive)
-#calc_test_rmse(model_additive)
+model_additive_basic = lm(price ~ . , data = house_data_raw)
+summary(model_additive_basic)
+car::vif(model_additive_basic)
+calc_loocv_rmse(model_additive_basic)
+calc_test_rmse(model_additive_basic)
+diagnostics(model_additive_basic)
+```
+
+
+```{r}
+model_additive_test = lm(price ~ . , data = house_tst)
+summary(model_additive_test)
+car::vif(model_additive_test)
+calc_loocv_rmse(model_additive_test)
+calc_test_rmse(model_additive_test)
+diagnostics(model_additive_test)
+```
+```{r}
+model_additive_log = lm(log(price) ~ . , data = house_tst)
+summary(model_additive_log)
+car::vif(model_additive_log)
+calc_loocv_rmse(model_additive_log)
+calc_test_rmse(model_additive_log)
+diagnostics(model_additive_log)
 ```
 
 ```{r}
 
 
 
-model_bic = step(model_additive,trace=0, k= log(length(resid(model_additive))))
+model_bic = step(model_additive_log,trace=0, k= log(length(resid(model_additive_log))))
 
 summary(model_bic)
 calc_loocv_rmse(model_bic)
@@ -156,24 +181,35 @@ plot(model_bic)
 ```
 
 ```{r}
-model_additive = lm(log(price) ~ sqft_living + floors + waterfront + view + 
-    condition + lat + long + sqft_living15 + sqft_lot15 + bedrooms_comp + 
-    age, data = house_trn)
-#summary(model_additive)
+model_bic_add = lm(log(price) ~ sqft_living + sqft_lot + floors + waterfront + 
+    view + condition + grade + lat + long + sqft_living15 + sqft_lot15 + 
+    bathrooms_comp + age, data = house_tst)
+summary(model_bic_add)
 #car::vif(model_additive)
 #calc_test_rmse(model_additive,TRUE)
 
-cd = cooks.distance(model_additive)
-model_additive = lm(log(price) ~ sqft_living + floors + waterfront + view + 
-    condition + lat + long + sqft_living15 + sqft_lot15 + bedrooms_comp + 
-    age, data = house_trn, subset = cd <= 4/length(resid(model_additive)))
-summary(model_additive)
-calc_test_rmse(model_additive,TRUE)
-calc_loocv_rmse(model_additive)
+#model_additive = lm(log(price) ~ bedrooms + bathrooms + log(sqft_living) + sqft_lot + floors + waterfront + view + condition + grade + sqft_above + yr_built + yr_renovated + zipcode + lat + long + log(sqft_living15) + log(sqft_lot15), data= house_data_raw)
 
-plot(model_additive)
-diagnostics(model_additive)
 
+```
+```{r}
+cd = cooks.distance(model_bic_add)
+model_bic_add_cook = lm(log(price) ~ sqft_living + floors + waterfront + view + 
+    condition + lat + long + sqft_living15  + 
+    age, data = house_trn, subset = cd <= 4/length(resid(model_bic_add_cook)))
+summary(model_bic_add_cook)
+exp(calc_loocv_rmse(model_bic_add_cook))
+
+
+calc_test_rmse(model_bic_add_cook,TRUE)
+exp(calc_loocv_rmse(model_bic_add_cook))
+
+plot(model_bic_add_cook)
+diagnostics(model_bic_add_cook)
+shapiro.test(resid(model_bic_add_cook))
+vif(model_bic_add_cook)
+bptest(model_bic_add_cook)
+table(as.numeric(house_data_base$condition))
 ```
 
 
@@ -191,7 +227,7 @@ cor(house_data_numeric)
 
 ```{r}
 
-model_interactive = lm(price ~ lat + long +(sqft_living + floors + waterfront + view  + sqft_above +  sqft_living15 + sqft_lot15 + age)^2 + bedrooms_comp + bathrooms_comp + condition,data = house_trn)
+model_interactive = lm(price ~ lat + long +(sqft_living + floors + waterfront + view  + sqft_above +  sqft_living15 + sqft_lot15 + age)^2 + bedrooms_comp + bathrooms_comp + log(condition),data = house_trn)
 
 summary(model_interactive)$adj.r.squared
 # model_aic = step(model_interactive,trace=0)
@@ -207,4 +243,9 @@ calc_test_rmse(model_bic)
 
 
 ## Reference
+House Sales in King County [Dataset] (2016) Kaggle. Available at: https://www.kaggle.com/harlfoxem/housesalesprediction [Accessed July 25, 2018].
+
+##extra
+
+
 
