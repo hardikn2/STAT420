@@ -280,11 +280,18 @@ Q-Q plot looks good normality is not an suspect anymore.
 
 
 ```{r}
+
+#interactive model
 model_interactive = lm(log(price) ~ (sqft_living + sqft_lot + waterfront + 
     view  + lat + long + sqft_living15 + age)^2 + grade + condition +  floors , data = house_trn)
 
 summary(model_interactive)$adj.r.squared
+```
 
+
+
+```{r}
+#BIC search
 k = log(length(resid(model_interactive)))
 model_int_bic = step(model_interactive, k= k)
 
@@ -298,12 +305,15 @@ model_int = lm(log(price) ~ sqft_living + sqft_lot + waterfront + view + lat +
     sqft_lot:age + waterfront:long + lat:long + lat:age + long:sqft_living15 + 
     long:age + sqft_living15:age, data = house_trn)
 
-model_int_bic
-
-summary(model_int_bic)
+#different checks
+summary(model_int_bic)$adj.r.squared
 car::vif(model_int_bic)
 diagnostics(model_int_bic)
 
+```
+
+```{r}
+#removing influential data to improve normality
 cd = cooks.distance(model_int_bic)
 model_bic_int_cook = lm(log(price) ~ sqft_living + sqft_lot + waterfront + 
     view + lat + long + sqft_living15 + age + grade + condition + 
@@ -316,15 +326,11 @@ summary(model_bic_int_cook)$adj.r.squared
 diagnostics(model_bic_int_cook)
 calc_test_rmse(model_bic_int_cook)
 
-table(as.numeric(house_data_raw$grade))
 
-
-```
-
-
-
-```{r}
-
+summary(model_int_bic)
+car::vif(model_int_bic)
+diagnostics(model_int_bic)
+# higher "test"" RMSE suggest overfitting so we are discarding the interative model 
 ```
 
 
