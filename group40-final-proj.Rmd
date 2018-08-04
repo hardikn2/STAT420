@@ -179,7 +179,7 @@ calc_test_rmse(model_additive_test, log=FALSE)
 diagnostics(model_additive_test)
 ```
 
-The adjusted $R^2$ of the base model is `r summary(model_additive_basic)$adj.r.squared` and the $RMSE_{test}$ is `r calc_test_rmse(model_additive_test)`.
+The adjusted $R^2$ of the base model is `r summary(model_additive_test)$adj.r.squared` and the $RMSE_{test}$ is `r calc_test_rmse(model_additive_test)`.
 
 Looking at the fitted-residual plot and the Q-Q plot, we reject the equal variance and the normality assumption.
 
