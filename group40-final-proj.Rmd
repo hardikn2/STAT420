@@ -203,7 +203,7 @@ The adjusted $R^2$ for the logged additive model is $`r summary(model_additive_l
 car::vif(model_additive_log)
 ```
 
-We look at the collinearity of all the variables used to fit the model. It is common practice to say that, if the VIF is greater than 5, then there is collinearity. Here we see that `bathrooms_comp`, `sqft_living` and `sqft_above` have VIFs greater than 5, therefore there is collinearity. We decide to keep `sqft_living` as we believe it is collinear to `sqft_above` and we believe it is an important variable that can affect the price.
+We look at the collinearity of all the variables used to fit the model. It is common practice to say that, if the VIF is greater than 5, then there is collinearity. Here we see that `bathrooms_comp`, `sqft_living` and `sqft_above` have VIFs greater than 5, therefore there is collinearity. We decide to keep `sqft_living` because based on collinearity matrix we saw earlier, it is collinear to `sqft_above` and we believe it is an important variable that can affect the price.
 
 ## Small Additive Model
 We fit an additive model with `log(price)` as the response and all variables except `bathroom_com` and `sqft_above` as predictors. 
@@ -216,7 +216,7 @@ calc_test_rmse(model_additive_small, log=TRUE)
 diagnostics(model_additive_small)
 car::vif(model_additive_small)
 ```
-While the adjusted $R^2$ does not change, the $RMSE_{test}$ decreases. Also, all VIFs are below 5. Therefore, we prefer the small additive logged model compared to the additive logged model.
+While the adjusted $R^2$ does not change much, all VIFs are below 5. Therefore, we prefer the small additive logged model with `bathrooms_comp` and `sqft_above` predictors removed compared to the previous full additive logged model.
 
 ## BIC backward model Selection
 ```{r bic_additive}
@@ -267,7 +267,7 @@ calc_test_rmse(model_int_bic, log=TRUE)
 diagnostics(model_int_bic)
 ```
 
-While Adjusted $R^2$ `r summary(model_int_bic)$adj.r.squared` increases not considerably, the $RMSE_{test}$ `r calc_test_rmse(model_int_bic, log=TRUE)` decreases which shows that our model is **overfitting**. Also the QQ-plot exhibits a violation of normality. We remove influential data in an attempt to improve normality and test it.
+While Adjusted $R^2$ `r summary(model_int_bic)$adj.r.squared` increases not considerably, the $RMSE_{test}$ `r calc_test_rmse(model_int_bic, log=TRUE)` decreases. The QQ-plot exhibits a violation of normality. We remove influential data in an attempt to improve normality and test it.
 
 ```{r cook_interactive}
 #removing influential data to improve normality
@@ -285,6 +285,8 @@ model_bic_int_cook = lm(log(price) ~ sqft_living + sqft_lot + waterfront +
 summary(model_bic_int_cook)$adj.r.squared
 diagnostics(model_bic_int_cook)
 calc_test_rmse(model_bic_int_cook, log=TRUE)
+
+anova(model_bic_add_cook,model_bic_int_cook)
 ```
 
 The Higher $RMSE_{test}$ of `r calc_test_rmse(model_bic_int_cook, log=TRUE)` suggests **overfitting** and Q-Q plot still exhibits a violation of normality. We discard the interactive model and kept the chosen additive model.
