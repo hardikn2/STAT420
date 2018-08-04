@@ -1,0 +1,307 @@
+---
+title: "Housing price prediction for King County, WA"
+author: "Joseph Juhn (jjuhn2), Olga Scrivner (olgas2), Hardik Naik (hardikn2), Marie Biscarrat (biscarr1)"
+output:
+  html_document: 
+    fig_width: 12
+    toc: yes
+  pdf_document: default
+urlcolor: cyan
+---
+
+***
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Team
+
+- Joseph Juhn (jjuhn2)
+- Olga Scrivner (olgas2)
+- Hardik Naik (hardikn2)
+- Marie Biscarrat (biscarr1)
+
+# Introduction
+We are looking to study how house price ($) can be predicted using various factors, such as the number of bedrooms, view, location, condition etc. This is one of the essential questions asked by almost every family when they decide to buy a new house. The goal of our model is to help a buyer identify a house price based on their preferred option. 
+
+Our data comes from a publicly available dataset “House Sales Prediction” on Kaggle. It consists of 21,613 observation and 21 variables. The price unit is selected as our continuous response value,  expressed in USA $. We did not include ID (we are not considering each house as individual subjects for a mixed model), Date (we are not interested in a time series analysis in this analysis), zipcode, latitude, and longitude (the data covers only King County). Among our independent variables, we have 3 categorical factors: waterfront (0 and 1), condition (1-5), view (1-4). The price range of our data set is between 75K and ~8M with a chi-square distribution (positively skewed). 
+
+To optimize the predictive power of our model we used a multiple linear regression with price as our response. We applied the following methods and techniques from the STAT 420:
+
+- Multiple linear regression
+- Dummy variables
+- Logarithmic Transformations
+- Residual diagnostics
+- Outlier diagnostics
+- Model selection
+- Interaction
+
+# Data Preparation
+
+## Packages and helper functions
+```{r include=FALSE, packages}
+library(plyr)
+library(MASS)
+library(ggplot2)
+library(faraway)
+library(lmtest)
+library(corrplot)
+library(ggcorrplot)
+library(caret)
+library(scales)
+```
+First, we defined any functions that would facilitate the statistical analysis of our data and the different models we fitted. 
+
+```{r helper_functions}
+#Functions
+calc_test_rmse = function(model,log=FALSE){
+  predictions = ifelse(log, exp(predict(model, house_tst)), predict(model, house_tst))
+  rmse_test = sqrt(mean((house_tst$price - predictions) ^ 2))
+  dollar(rmse_test)
+}
+
+diagnostics = function(model, pcol = "grey", lcol = "dodgerblue", alpha = 0.05, plotit = TRUE,
+                       testit = FALSE) {
+  
+  if (plotit == TRUE) {
+    par(mfrow = c(1, 2))
+    
+    plot(fitted(model) , resid(model), col = pcol, pch = 20, 
+         xlab = "Fitted", ylab = "Residuals", main = "Fitted vs Residuals")
+    abline(h = 0, col = lcol, lwd = 2)
+    
+    qqnorm(resid(model), col = pcol, pch = 20)
+    qqline(resid(model), col = lcol, lwd = 2)
+  }
+  
+  if (testit == TRUE) {
+    p_val = shapiro.test(resid(model))$p.value
+    decision = ifelse(p_val < alpha, "Reject", "Fail to Reject")
+    list(p_val = p_val, decision = decision)
+  }
+}
+
+calc_loocv_rmse = function(model) {
+  sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
+}
+```
+## First look at the data
+After loading the data and removing NULL values, we first tried to fit a linear model with Price as a response and all the other variables as predictors. This was done to get an idea of what type of values (R$^2$, RMSE) we would get without doing any data processing. We noticed that, aside from the `Date`, none of the variables were factors. 
+
+```{r fig.height=8, fig.width=8, first_look}
+set.seed(23)
+house_data_raw = read.table("kc_house_data.csv", header = T, sep = ",")
+house_data_raw = na.omit(house_data_raw)
+
+corr <- round(cor(house_data_raw[-c(1,2)]), 1)
+ggcorrplot(corr,method="square", hc.order = TRUE, type = "lower", lab = TRUE,ggtheme = ggplot2::theme_classic, tl.cex = 18)
+```
+
+```{r model_additive_basic}
+model_additive_basic = lm(price ~ . , data = house_data_raw)
+summary(model_additive_basic)$adj.r.squared
+diagnostics(model_additive_basic)
+```
+
+While $R^2_{adj}$ was good the fitted vs Residual and Q-Q plots shows that a lot of modifications needs to be done to the model and data.
+
+After looking at the data and the model, we realized that the number of bathrooms and rooms were fixed and that the variable `bathrooms` could not be any value when using this model to predict the price of a house in King County. Therefore, after some data manipulation, `bedrooms` and `bathrooms` were transformed into a factor variable. The variables `view`, `floors`, `waterfront`, `condition` and `grade` were also transformed into factors because they could only be a specific value or characterization.
+
+## Data Manipulation
+### Bathroom
+We believed that .25 and .75 bathrooms were too precise, and would give us a huge number of levels, so we decided to round to the lowest integer when the number of bathrooms when there was a value with .25 and to round to the lower .5 for a value with .75. We always lowered the number of bathrooms as having more bathrooms than advertised or recorded is not an issue whereas having a larger number of bathrooms than the reality might be a problem for those who were looking for that number of bathrooms. After looking at the distribution of the data, we see that the majority of the houses have 3.5 bathrooms or less. To avoid having a test data with a level that is not present in the train data or vice versa, any bathroom with more than 3.5 bathrooms were set to the same category `3.5+`.
+
+### Floors
+A similar rounding process was done for the number of floors, as we believed the half levels were a precision that was not needed and that would increase the number of levels unnecessarily. 
+
+### Bedroom
+For the number of bedrooms, we looked at the distribution of the data in a histogram and we saw that the majority of the data fell between 0 and 6. Houses with more than 6 rooms were rare. Therefore, we grouped the houses with more than 6 bedrooms into one category `6+`. This change also avoided some factors not being in the train or test data.
+
+### Year built and renovation
+The renovation variable would give us the year where renovations were done and set 0 to the observers that have never had renovations. Instead of having data with a big jump or transforming it into a categorical variable, we transformed the year built and the renovation year into an age of the house at the last update/ construction by subtracting the renovation year to the year built. 
+
+### Grade
+The grade value was also transformed into groups to avoid having too many variables in the model. According to the King County info website, the grade can be separated into 4 categories: `Inferior`, `Low`, `Average` and `High`.
+
+After transforming some of the data, we looked at which variables could be removed as it would complicate the model if treated as a categorical variable, but would not make sense as a numerical value. This was the case for `id`, `date` and `zipcode`. We also removed the Year built and Renovation variable as those were transformed into `age` and were now unnecessary and bedroom and bathroom as those were reassigned. We also decided to remove `sqft_basement` as there was another jump in the data with houses without basement having a 0 and it could not be modified easily. 
+
+```{r data_cleaning}
+house_data_base = house_data_raw
+
+house_data_base$bathrooms = mapvalues(house_data_base$bathrooms, from = c(0.75, 1.25,  1.75, 2.25, 2.75, 3.25, 3.75, 4.25, 4.75, 5.25, 5.75, 6.25, 6.75, 7.75), to = c(0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7.5))
+
+ggplot(house_data_base, aes(bathrooms)) +geom_histogram(binwidth=0.2, fill="steelblue", alpha=I(0.8)) + theme_minimal() + labs(title="Distribution of Bathrooms", x="Bathrooms")
+
+house_data_base$bathrooms_comp = ifelse(house_data_base$bathrooms>3.5,"3.5 +", as.character(house_data_base$bathrooms)) 
+
+house_data_base$floors = mapvalues(house_data_base$floors, from = c(1.5, 2.5, 3.5), to = c(1, 2, 3))
+
+ggplot(house_data_base, aes(bedrooms)) +geom_histogram(binwidth=0.5, fill="steelblue", alpha=I(0.8)) + theme_minimal() + labs(title="Distribution of bedrooms", x="Bedrooms")
+
+house_data_base$bedrooms_comp = ifelse(house_data_base$bedrooms>6,"6 +", as.character(house_data_base$bedrooms)) 
+
+house_data_base$age = ifelse(house_data_base$yr_renovated == 0, 2015 - house_data_base$yr_built, 2015 - house_data_base$yr_renovated)
+
+house_data_base$grade = mapvalues(house_data_base$grade, 
+                                  from = c(1,3,4,5,6,7,8,9,10,11,12,13), 
+                                  to = c("Inferior","Inferior","Inferior","Inferior","Low","Average","Average","Average","High","High","High","High"))
+
+
+house_data_base$bedrooms_comp = as.factor(house_data_base$bedrooms_comp)
+house_data_base$bathrooms_comp = as.factor(house_data_base$bathrooms_comp)
+house_data_base$floors = as.factor(house_data_base$floors)
+house_data_base$view = as.factor(house_data_base$view)
+house_data_base$waterfront = as.factor(house_data_base$waterfront)
+house_data_base$condition = as.factor(house_data_base$condition)
+house_data_base$grade = as.factor(house_data_base$grade)
+
+# Remove the variables 
+remove = c("id","date","zipcode", "bedrooms", "bathrooms","yr_built", "yr_renovated","sqft_basement")
+house_data = house_data_base[ , !(names(house_data_base) %in% remove)]
+
+# train and test split 
+house_idx = sample(nrow(house_data), 5000)
+house_trn = house_data[-house_idx, ]
+house_tst = house_data[house_idx, ]
+```
+
+Finally, we split data into a training set (`r nrow(house_trn)`) and testing set (`r nrow(house_tst)`).
+
+# Analysis of Data and Interpretation of Results
+
+## Additive Model
+Using the train data set, an additive model with price as a response and all other variables is fit using linear regression. 
+
+```{r MLR_basic}
+model_additive_test = lm(price ~ . , data = house_trn)
+summary(model_additive_test)$adj.r.squared
+calc_test_rmse(model_additive_test, log=FALSE)
+diagnostics(model_additive_test)
+```
+
+The $R^2_{adj}$ of the base model is `r summary(model_additive_test)$adj.r.squared` and the $RMSE_{test}$ is `r calc_test_rmse(model_additive_test)`.
+
+Looking at the fitted-residual plot and the Q-Q plot, we reject the equal variance and the normality assumption.
+
+```{r boxcox}
+ boxcox(model_additive_test, lambda = seq(-0.1, 0.1, length = 20))
+```
+A box cox test is done and indicates having lambda closer to 0 would benefit the model. 
+Although 0 is out of the 95 % confidence interval, it is pretty close and we didn't want to use fractional value. Having $\lambda=0$ suggests using log transformation on the response variable `price`.
+
+## Response transformation: Logged Response
+```{r additive_log}
+model_additive_log = lm(log(price) ~ . , data = house_trn)
+summary(model_additive_log)$adj.r.squared
+calc_test_rmse(model_additive_log, log=TRUE)
+diagnostics(model_additive_log)
+```
+The adjusted $R^2$ for the logged additive model is $`r summary(model_additive_log)$adj.r.squared`$ and the test RMSE is `r calc_test_rmse(model_additive_log, TRUE)`. We see that, compared to the additive model, the $R^2_{adj}$ increases and the $RMSE_{test}$ decreases. The increased $R^2_{adj}$ is good so logging the response is an appropriate transformation. However, we want to further enhance $R^2_{adj}$ and $RMSE_{test}$ values, therefore more modifications need to be done to the model. 
+
+## Collinearity
+```{r collinearity}
+car::vif(model_additive_log)
+```
+
+We look at the collinearity of all the variables used to fit the model. It is common practice to say that, if the VIF is greater than 5, then there is collinearity. Here we see that `bathrooms_comp`, `sqft_living` and `sqft_above` have VIFs greater than 5, therefore there is collinearity. We decide to keep `sqft_living` because based on collinearity matrix we saw earlier, it is collinear to `sqft_above` and we believe it is an important variable that can affect the price.
+
+## Small Additive Model
+We fit an additive model with `log(price)` as the response and all variables except `bathroom_com` and `sqft_above` as predictors. 
+
+```{r small_additive}
+model_additive_small = lm(log(price) ~ . -bathrooms_comp -sqft_above, data = house_trn)
+
+summary(model_additive_small)$adj.r.squared
+calc_test_rmse(model_additive_small, log=TRUE)
+diagnostics(model_additive_small)
+car::vif(model_additive_small)
+
+```
+The $R^2_{adj}$ and $RMSE_{test}$ does not changed significantly. However, all VIFs are now below 5. Therefore, we prefer the small additive logged model with `bathrooms_comp` and `sqft_above` predictors removed compared to the previous full additive logged model.
+
+## BIC backward model Selection
+```{r bic_additive}
+model_bic = step(model_additive_small,trace=0, k= log(length(resid(model_additive_small))))
+summary(model_bic)$adj.r.squared
+
+calc_test_rmse(model_bic, log=TRUE)
+diagnostics(model_bic) 
+```
+
+Using the small additive logged model, we perform a backwards step BIC model selection. 
+
+```{r cook_bic_additive}
+# removing influential data for normality
+cd = cooks.distance(model_bic)
+model_bic_add_cook = lm(log(price) ~ sqft_living + sqft_lot + floors + waterfront + 
+                          view + condition + grade + lat + long + sqft_living15 + age, 
+                        data = house_trn, subset = cd <= 4/length(resid(model_bic)))
+
+summary(model_bic_add_cook)$adj.r.squared
+calc_test_rmse(model_bic_add_cook, log=TRUE)
+
+diagnostics(model_bic_add_cook)
+```
+
+Using the chosen model from BIC backwards step model selection, we look to see in there are any influential data points. Data points are considered influential if there Cook's distance is greater than $\frac{4}{n}$ where n is the size of the sample. We decide to remove these points and fit the edited data to the BIC chosen model. We see that the $R^2_{adj}$ increases, the $RMSE_{test}$ decreases and the Q-Q plot improves, such that normality of the data is no longer suspect. We also see that the outlier point was removed from the Fitted vs Residuals plot allowing us to better see the linearity of the data (Fitted vs Residuals plot centered around 0).
+
+From the Fitted vs Residuals plot, we also observe that for the vast majority of data the equal variance assumption was satisfied.
+
+## Interactive modeling and BIC
+
+Next, we want to build an interaction model and test whether there is a relation in which the outcome of one independent variable depends on the value of another independent variable. 
+
+```{r big_interactive_model}
+big_model_interactive = lm(log(price) ~ (sqft_living + sqft_lot + waterfront + view  + lat + long +                             sqft_living15 + age + grade + condition +  floors)^2 , data = house_trn)
+summary(big_model_interactive)$adj.r.squared
+```
+The $R^2_{adj}$ is `r summary(big_model_interactive)$adj.r.squared`. Next we perform the BIC backwards step model selection. 
+
+```{r bic_interactive}
+#BIC search
+k = log(length(resid(big_model_interactive)))
+model_int_bic = step(big_model_interactive, k= k, trace = 0)
+
+#different checks
+summary(model_int_bic)$adj.r.squared
+calc_test_rmse(model_int_bic, log=TRUE)
+diagnostics(model_int_bic)
+```
+
+While $R^2_{adj}$ `r summary(model_int_bic)$adj.r.squared` increase in small amount, the $RMSE_{test}$ `r calc_test_rmse(model_int_bic, log=TRUE)` decrease or not improve significantly  suggesting based on initial train/test split. The QQ-plot exhibits a violation of normality. We remove influential data in an attempt to improve normality and test it.
+
+```{r cook_interactive}
+#removing influential data to improve normality
+cd = cooks.distance(model_int_bic)
+model_bic_int_cook = lm(log(price) ~ sqft_living + sqft_lot + waterfront + 
+                          view + lat + long + sqft_living15 + age + grade + condition + 
+                          floors + sqft_living:sqft_lot + sqft_living:view + sqft_living:long + 
+                          sqft_living:age + sqft_lot:lat + sqft_lot:sqft_living15 + 
+                          sqft_lot:age + waterfront:long + lat:long + lat:age + lat:floors + 
+                          long:sqft_living15 + long:age + long:grade + long:floors + 
+                          sqft_living15:age + sqft_living15:grade + sqft_living15:condition + 
+                          sqft_living15:floors + age:grade + age:condition + age:floors, 
+                        data = house_trn, subset = cd <= 4/length(resid(model_int_bic)))
+
+summary(model_bic_int_cook)$adj.r.squared
+diagnostics(model_bic_int_cook)
+calc_test_rmse(model_bic_int_cook, log=TRUE)
+```
+
+The $RMSE_{test}$ of `r calc_test_rmse(model_bic_int_cook, log=TRUE)` with these *big* model suggests **overfitting** and Q-Q plot still exhibits a violation of normality. We discard the interactive model and keep the chosen additive model.
+
+# Discussion and Summary
+The goal of this project was to identify the best model to predict house price using the methods discussed in class. This was done by trying to increase $R^2$ and lower $RMSE_{test}$, while satisfying the normality, linearity and equal variance assumptions. 
+
+We started with the full additive model with no transformation, then using boxcox function we determined that the best transformation for response was a logarithmic transformation. Then, we selected the best model using BIC backward model selection from the initial model with the log response and collinear variables removed. Next, we tested for outliers and discovered several influential points. Therefore, we measured cook distance and removed these unusual observations, which helped us improve our model. We also repeated the same workflow for an interaction model, starting from the chosen additive BIC model. However, the interactions did not improve results. Thus our best model remained the chosen additive BIC model written as formula below.
+
+**log(price) ~ sqft_living + sqft_lot + floors + waterfront + view + condition + grade + lat + long + sqft_living15 + age**
+
+
+# Reference
+http://info.kingcounty.gov/assessor/esales/Glossary.aspx?type=r [Accessed July 25, 2018].
+
+House Sales in King County [Dataset] (2016) Kaggle. Available at: https://www.kaggle.com/harlfoxem/housesalesprediction [Accessed July 25, 2018].
+
+# Additional Notes: Initial Proposal 
+Our initial research looked at Enrollment Rate across US Universities from IPEDS (https://nces.ed.gov/ipeds/use-the-data). We spent a lot more time on data preparation and cleaning aspect initially. We evaluated additive and interactive models using a variety of techniques, and we improved our $R^2$ from 0.11 to 0.30. However, we were not sure that such a low score would be sufficient for the final project. We later discussed this with David Unger in office hour and got an approval for the switch.
